@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.loaders.pdf_loader import PDFLoader
-from src.chunking.reserachpaper import SectionAwareChunker
+from src.chunking.researchpaper import SectionAwareChunker
 
 
 # ============================================================
@@ -65,13 +65,9 @@ for page in document.pages:
 
 chunker = SectionAwareChunker(
     max_tokens=800,
-    overlap_tokens=100,
-    min_chunk_tokens=50,
 )
 
-parents, chunks = chunker.chunk(
-    document
-)
+chunks = chunker.chunk(document)
 
 
 # ============================================================
@@ -84,65 +80,18 @@ print("CHUNK SUMMARY")
 print("=" * 80)
 
 print(
-    "Parent sections:",
-    len(parents)
-)
-
-print(
-    "Child chunks:",
+    "Total chunks:",
     len(chunks)
 )
 
 
 # ============================================================
-# 5. PARENT SECTIONS
+# 5. CHUNKS
 # ============================================================
 
 print()
 print("=" * 80)
-print("PARENT SECTIONS")
-print("=" * 80)
-
-for parent in parents:
-
-    print("\n--- PARENT ---")
-
-    print(
-        "ID:",
-        parent.parent_id[:16],
-        "..."
-    )
-
-    print(
-        "Title:",
-        parent.title
-    )
-
-    print(
-        "Section:",
-        " > ".join(
-            parent.section_path
-        )
-    )
-
-    print(
-        "Pages:",
-        parent.page_numbers
-    )
-
-    print(
-        "Tokens:",
-        parent.token_count
-    )
-
-
-# ============================================================
-# 6. CHILD CHUNKS
-# ============================================================
-
-print()
-print("=" * 80)
-print("CHILD CHUNKS")
+print("CHUNKS")
 print("=" * 80)
 
 for chunk in chunks[:10]:
@@ -150,47 +99,52 @@ for chunk in chunks[:10]:
     print("\n--- CHUNK ---")
 
     print(
-        "Index:",
-        chunk.chunk_index
-    )
-
-    print(
         "ID:",
-        chunk.chunk_id[:16],
+        chunk.id[:16],
         "..."
     )
 
     print(
-        "Parent:",
-        chunk.parent_id[:16],
+        "Document ID:",
+        chunk.document_id[:16],
         "..."
     )
 
     print(
-        "Pages:",
-        chunk.page_numbers
+        "Page:",
+        chunk.metadata["page_number"]
+    )
+
+    print(
+        "Chunk index:",
+        chunk.metadata["chunk_index"]
     )
 
     print(
         "Section:",
         " > ".join(
-            chunk.section_path
+            chunk.metadata.get(
+                "section_path",
+                []
+            )
         )
     )
 
     print(
-        "Block types:",
-        chunk.block_types
-    )
-
-    print(
-        "Words:",
-        chunk.word_count
+        "Type:",
+        chunk.metadata.get(
+            "chunk_type"
+        )
     )
 
     print(
         "Tokens:",
-        chunk.token_count
+        chunk.metadata["token_count"]
+    )
+
+    print(
+        "Strategy:",
+        chunk.metadata["strategy"]
     )
 
     print(
@@ -199,15 +153,9 @@ for chunk in chunks[:10]:
 
     print(chunk.text)
 
-    print(
-        "\nEmbedding text:"
-    )
-
-    print(chunk.embedding_text)
-
 
 # ============================================================
-# 7. VALIDATION
+# 6. VALIDATION
 # ============================================================
 
 print()
@@ -216,18 +164,21 @@ print("VALIDATION")
 print("=" * 80)
 
 
-# ---- Token limit --------------------------------------------
+# ------------------------------------------------------------
+# Token limit
+# ------------------------------------------------------------
 
 oversized = [
     chunk
     for chunk in chunks
-    if chunk.token_count > chunker.max_tokens
+    if chunk.metadata["token_count"]
+    > chunker.max_tokens
 ]
 
 print(
     "Maximum chunk tokens:",
     max(
-        chunk.token_count
+        chunk.metadata["token_count"]
         for chunk in chunks
     )
 )
@@ -243,7 +194,76 @@ print(
 )
 
 
-# ---- Atomic blocks ------------------------------------------
+# ------------------------------------------------------------
+# Required metadata
+# ------------------------------------------------------------
+
+required_metadata = {
+    "document_name",
+    "source_path",
+    "mime_type",
+    "page_number",
+    "chunk_index",
+    "strategy",
+}
+
+invalid_metadata = []
+
+for chunk in chunks:
+
+    missing = (
+        required_metadata
+        - chunk.metadata.keys()
+    )
+
+    if missing:
+        invalid_metadata.append(
+            (chunk.id, missing)
+        )
+
+print(
+    "Chunks missing required metadata:",
+    len(invalid_metadata)
+)
+
+
+# ------------------------------------------------------------
+# IDs
+# ------------------------------------------------------------
+
+missing_ids = [
+    chunk
+    for chunk in chunks
+    if not chunk.id
+]
+
+print(
+    "Chunks without IDs:",
+    len(missing_ids)
+)
+
+
+# ------------------------------------------------------------
+# Section context
+# ------------------------------------------------------------
+
+sectionless = [
+    chunk
+    for chunk in chunks
+    if not chunk.metadata.get(
+        "section_path"
+    )
+]
+
+print(
+    "Chunks without section path:",
+    len(sectionless)
+)
+
+
+# ------------------------------------------------------------
+# Atomic chunks
+# ------------------------------------------------------------
 
 atomic_chunks = [
     chunk
@@ -260,50 +280,53 @@ print(
 )
 
 
-# ---- Deterministic IDs --------------------------------------
+# ============================================================
+# 7. PAGE CHUNK INDEX VALIDATION
+# ============================================================
 
-missing_ids = [
-    chunk
-    for chunk in chunks
-    if not chunk.chunk_id
-]
+print()
+print("=" * 80)
+print("PAGE INDEX VALIDATION")
+print("=" * 80)
 
-print(
-    "Chunks without IDs:",
-    len(missing_ids)
-)
+chunks_by_page = {}
 
+for chunk in chunks:
 
-# ---- Parent IDs ---------------------------------------------
+    page = chunk.metadata["page_number"]
 
-missing_parents = [
-    chunk
-    for chunk in chunks
-    if not chunk.parent_id
-]
-
-print(
-    "Chunks without parent:",
-    len(missing_parents)
-)
+    chunks_by_page.setdefault(
+        page,
+        []
+    ).append(chunk)
 
 
-# ---- Section context ----------------------------------------
+page_index_errors = []
 
-contextless = [
-    chunk
-    for chunk in chunks
-    if (
-        chunk.section_path
-        and not chunk.embedding_text.startswith(
-            "Section:"
-        )
+for page, page_chunks in chunks_by_page.items():
+
+    expected = list(
+        range(len(page_chunks))
     )
-]
+
+    actual = [
+        chunk.metadata["chunk_index"]
+        for chunk in page_chunks
+    ]
+
+    if actual != expected:
+
+        page_index_errors.append(
+            {
+                "page": page,
+                "expected": expected,
+                "actual": actual,
+            }
+        )
 
 print(
-    "Chunks without embedding section context:",
-    len(contextless)
+    "Pages with chunk-index errors:",
+    len(page_index_errors)
 )
 
 
@@ -316,17 +339,38 @@ print("=" * 80)
 print("FINAL RESULT")
 print("=" * 80)
 
-if oversized:
-    print("❌ FAIL: Some chunks exceed max_tokens")
+if not chunks:
+
+    print(
+        "❌ FAIL: No chunks were produced."
+    )
+
+elif oversized:
+
+    print(
+        "❌ FAIL: Some chunks exceed max_tokens."
+    )
+
+elif invalid_metadata:
+
+    print(
+        "❌ FAIL: Some chunks are missing required metadata."
+    )
 
 elif missing_ids:
-    print("❌ FAIL: Some chunks have no chunk ID")
 
-elif missing_parents:
-    print("❌ FAIL: Some chunks have no parent ID")
+    print(
+        "❌ FAIL: Some chunks have no ID."
+    )
 
-elif contextless:
-    print("❌ FAIL: Some chunks lack section context")
+elif page_index_errors:
+
+    print(
+        "❌ FAIL: chunk_index is incorrect."
+    )
 
 else:
-    print("✅ LOADER + CHUNKER TEST PASSED")
+
+    print(
+        "✅ LOADER + SECTION-AWARE CHUNKER TEST PASSED"
+    )
