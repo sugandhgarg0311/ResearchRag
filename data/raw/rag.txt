@@ -1,0 +1,1275 @@
+﻿Retrieval-Augmented Generation: Theory and Engineering Foundations 
+
+1. Introduction 
+
+Retrieval-Augmented Generation, commonly abbreviated as RAG, is an architecture that 
+combines information retrieval with language generation. The central idea is simple: instead of 
+requiring a language model to answer every question using only information stored in its 
+parameters, the system retrieves relevant information from an external knowledge source and 
+supplies that information to the model as context. 
+
+A conventional language model receives a prompt and generates a response based primarily on 
+patterns learned during training. The model does not automatically have access to a company's 
+latest documentation, a private collection of research papers, an internal database, or 
+documents uploaded by a user. Fine-tuning can change model behavior and can sometimes 
+introduce domain-specific knowledge, but it is generally not the most practical mechanism for 
+continuously updating factual information. 
+
+RAG addresses this problem by separating knowledge storage from language generation. The 
+external knowledge base contains the information that the system is expected to retrieve. The 
+language model is responsible for interpreting the user's question, reasoning over the retrieved 
+evidence, and producing a natural-language response. 
+
+A basic RAG system can therefore be represented as a pipeline: 
+
+User Query → Retrieval → Context Construction → Language Model → Answer 
+
+The retrieval stage searches a collection of documents or document chunks. The context 
+construction stage selects and organizes the retrieved material. The language model then 
+receives the original question together with the retrieved context. 
+
+This architecture provides several advantages. Knowledge can be updated without retraining the 
+language model. Retrieved passages can be shown to users as citations. Private organizational 
+information can remain outside the model's training process. Retrieval can also restrict the 
+information available to the generation model to a particular collection. 
+
+However, RAG does not automatically eliminate hallucinations. A language model can still 
+generate unsupported statements even when retrieval is present. Retrieval itself can fail by 
+returning irrelevant documents, incomplete information, or information that is technically 
+related but insufficient to answer the question. Consequently, production RAG systems need to 
+treat ingestion, chunking, indexing, retrieval, reranking, context construction, generation, and 
+evaluation as separate engineering problems. 
+
+The simplest RAG architecture is often called naive RAG. Naive RAG typically loads documents, 
+splits them into fixed-size chunks, embeds those chunks, stores them in a vector database, 
+retrieves the nearest chunks for a query, and inserts those chunks into a prompt. Although 
+simple, this architecture provides an important baseline. More advanced RAG systems should 
+be understood as improvements to specific weaknesses in this baseline rather than as 
+completely unrelated architectures. 
+
+ 
+2. Why RAG Is Needed 
+
+
+
+Large language models are trained on enormous datasets, but their internal parameters are not 
+equivalent to a traditional database. A model does not perform an exact database lookup 
+whenever it produces an answer. Instead, it generates text based on statistical patterns 
+encoded during training. 
+
+This creates several practical problems. 
+
+The first problem is knowledge freshness. A model may not know about documents created 
+after its training data was collected. Even when a model has been trained on information about 
+a particular topic, that information may have changed. 
+
+The second problem is private information. Organizations often need systems that can answer 
+questions about internal documents, customer records, technical manuals, policies, or 
+proprietary research. Such information may not be present in the model's training data. 
+
+The third problem is traceability. A model can provide a plausible answer without explaining 
+which source supports that answer. RAG can associate generated answers with retrieved 
+passages and therefore make source attribution easier. 
+
+The fourth problem is domain specificity. A general-purpose model may know a broad amount 
+of information but may not know the terminology, procedures, or internal conventions of a 
+specialized organization. 
+
+RAG provides a mechanism for connecting a general-purpose language model to a changing 
+external knowledge source. 
+
+For example, consider an organization with thousands of internal documents. A user asks: 
+
+"What is the process for requesting production database access?" 
+
+Instead of expecting the language model to know the organization's internal policy, the RAG 
+system searches the organization's documentation. It might retrieve an access policy, an 
+approval procedure, and an internal security guide. Those documents become evidence for the 
+generation model. 
+
+The model can then answer using the retrieved information. 
+
+The important distinction is that the model is not necessarily learning the information 
+permanently. It is being given relevant information at inference time. 
+
+ 
+3. The Basic RAG Pipeline 
+
+A typical RAG system contains two major pipelines: an offline ingestion pipeline and an online 
+query pipeline. 
+
+The ingestion pipeline prepares knowledge for retrieval. 
+
+Documents → Loading → Parsing → Chunking → Embedding → Indexing 
+
+The query pipeline retrieves knowledge when the user asks a question. 
+
+Query → Query Processing → Retrieval → Reranking → Context Construction → Generation 
+
+
+
+Separating these pipelines is important because ingestion usually happens less frequently than 
+querying. 
+
+A document may be uploaded once and then queried thousands of times. It would be inefficient 
+to parse and embed the document every time a user asks a question. Instead, the system 
+preprocesses the document and stores its searchable representation. 
+
+During ingestion, a loader reads a document from a source such as a filesystem, object storage 
+system, web page, database, or API. The loader produces a normalized document 
+representation. 
+
+The document is then divided into chunks. Chunking determines the units that will later be 
+retrieved. 
+
+Each chunk is converted into an embedding vector. The vector captures semantic properties of 
+the chunk according to the embedding model. 
+
+The vectors are stored in an index, often together with the original text and metadata. 
+
+When a user submits a query, the query is embedded using the same embedding model or a 
+compatible query encoder. The retrieval system compares the query representation with stored 
+chunk representations. 
+
+The highest-scoring candidates are selected. 
+
+The candidates may then be reranked by a more expensive relevance model. 
+
+Finally, the selected context is inserted into a prompt and passed to a language model. 
+
+ 
+4. Documents and Document Loaders 
+
+Before chunking can occur, the system must convert different sources into a consistent internal 
+representation. 
+
+A document loader is responsible for reading an input source and producing a normalized 
+document object. 
+
+A loader might read: 
+
+• TXT files  
+
+• Markdown files  
+
+• PDFs  
+
+• HTML pages  
+
+• Word documents  
+
+• CSV files  
+
+• JSON documents  
+
+• database records  
+
+• web pages  
+
+
+
+• cloud storage objects  
+
+Different formats have different structures. A plain text file may simply contain a sequence of 
+characters. A PDF may contain pages, tables, figures, equations, and multiple columns. 
+Markdown contains explicit headings and formatting. CSV contains rows and columns. 
+
+A good ingestion architecture hides these format-specific details behind a common interface. 
+
+For example, a normalized document might contain: 
+
+document ID 
+document name 
+source path 
+MIME type 
+pages or blocks 
+document metadata 
+
+Each page can contain: 
+
+page number 
+text 
+page metadata 
+
+This representation allows downstream components to operate on documents without knowing 
+exactly how they were loaded. 
+
+The distinction between loading and chunking is important. A loader should primarily answer 
+the question: 
+
+"How do I extract the document into a normalized representation?" 
+
+A chunker should answer: 
+
+"How should this representation be divided into retrievable units?" 
+
+Mixing these responsibilities makes the system difficult to extend. 
+
+ 
+5. Chunking 
+
+Chunking is the process of dividing a document into smaller pieces. 
+
+Chunking is one of the most important components of a RAG pipeline because retrieval 
+normally operates on chunks rather than entire documents. 
+
+Suppose a document contains 100 pages. If the entire document is embedded as one vector, a 
+query about one small paragraph has to match against a representation containing many 
+unrelated concepts. 
+
+Instead, the document can be divided into smaller units. 
+
+For example: 
+
+Document → Chunk 1, Chunk 2, Chunk 3, ..., Chunk N 
+
+Each chunk receives its own embedding. 
+
+
+
+The choice of chunk boundaries affects retrieval quality. 
+
+If chunks are too large, they contain too many concepts. The resulting embedding may be less 
+specific and the retrieved context may contain unnecessary information. 
+
+If chunks are too small, important context can be lost. A definition might be separated from its 
+explanation. A table might be separated from its caption. A theorem might be separated from its 
+proof. 
+
+Therefore chunking involves a tradeoff between contextual completeness and retrieval 
+precision. 
+
+There is no universally optimal chunk size. 
+
+The correct strategy depends on the document type, question distribution, embedding model, 
+retrieval system, and generation model. 
+
+ 
+6. Fixed-Size Chunking 
+
+Fixed-size chunking is the simplest chunking strategy. 
+
+A document is divided according to a predefined number of characters or tokens. 
+
+Suppose: 
+
+chunk size = 1000 characters 
+overlap = 200 characters 
+
+The first chunk contains characters 0 through 999. 
+
+The next chunk begins at character 800. 
+
+The third begins at character 1600. 
+
+The overlap is intended to preserve information around chunk boundaries. 
+
+The advantage of fixed-size chunking is simplicity. The behavior is deterministic and easy to 
+understand. It requires no understanding of document structure. 
+
+It also provides an excellent baseline for experiments. 
+
+However, fixed-size chunking has an important weakness: it does not understand semantics. 
+
+Consider the sentence: 
+
+"Retrieval quality depends heavily on the quality of the embedding model because..." 
+
+If the chunk ends immediately after "because", the next chunk may contain the rest of the 
+explanation. The two chunks individually become less meaningful. 
+
+Fixed-size chunking may also split: 
+
+• paragraphs  
+
+• sentences  
+
+• headings  
+
+
+
+• code blocks  
+
+• tables  
+
+• equations  
+
+• lists  
+
+This does not make fixed-size chunking useless. Instead, it establishes a baseline against which 
+more sophisticated approaches can be evaluated. 
+
+ 
+7. Chunk Overlap 
+
+Chunk overlap is commonly used with fixed-size chunking. 
+
+Suppose the chunk size is 1000 characters and the overlap is 200 characters. 
+
+Chunk one covers: 
+
+0–1000 
+
+Chunk two covers: 
+
+800–1800 
+
+Chunk three covers: 
+
+1600–2600 
+
+The 200-character overlap ensures that information near the boundary appears in both chunks. 
+
+Overlap can improve retrieval because a query matching information at a boundary has a 
+greater chance of retrieving a chunk containing sufficient context. 
+
+However, overlap introduces costs. 
+
+More overlap means more chunks. 
+
+More chunks mean more embeddings. 
+
+More embeddings mean greater storage and indexing cost. 
+
+Overlap can also cause retrieval redundancy. Multiple highly similar chunks may appear among 
+the top results. 
+
+The optimal overlap therefore depends on the application. 
+
+A common mistake is assuming that larger overlap always produces better retrieval. It does not. 
+Excessive overlap can increase cost without improving answer quality. 
+
+ 
+8. Recursive Chunking 
+
+Recursive chunking attempts to preserve natural boundaries. 
+
+Instead of blindly cutting at a character count, a recursive splitter can attempt to divide text 
+using a hierarchy of separators. 
+
+
+
+For example: 
+
+1. paragraphs  
+
+2. lines  
+
+3. sentences  
+
+4. words  
+
+5. characters  
+
+The splitter first tries to create chunks using large semantic boundaries. If a resulting piece is 
+still too large, it recursively splits it using smaller boundaries. 
+
+This produces chunks that are approximately the target size while preserving more natural 
+structure. 
+
+Recursive chunking is often a strong default for ordinary prose. 
+
+However, it still does not necessarily understand the deeper semantic structure of a document. 
+A Markdown heading might be treated as just another line unless the splitter is specifically 
+configured to recognize headings. 
+
+ 
+9. Structure-Aware Chunking 
+
+Structure-aware chunking uses information about the document's organization. 
+
+For Markdown, the structure may be: 
+
+Retrieval 
+
+Dense Retrieval 
+
+Embeddings 
+
+Vector Search 
+
+A structure-aware chunker can preserve this hierarchy. 
+
+A chunk containing information about embeddings can have metadata such as: 
+
+document = rag.md 
+heading = Retrieval 
+subheading = Dense Retrieval 
+subsection = Embeddings 
+
+This metadata can be used during retrieval and citation. 
+
+Structure-aware chunking is particularly useful for documents where headings convey 
+meaning. 
+
+Consider two chunks: 
+
+"Performance improved by 12 percent." 
+
+and: 
+
+
+
+"Performance improved by 12 percent." 
+
+Without context, the statement is ambiguous. 
+
+But if metadata says: 
+
+section = Experiments 
+subsection = Retrieval Recall 
+
+the meaning becomes clearer. 
+
+This demonstrates why metadata is not merely bookkeeping. Metadata can become part of the 
+retrieval architecture. 
+
+ 
+10. Semantic Chunking 
+
+Semantic chunking attempts to identify boundaries based on meaning rather than purely 
+structural markers or character counts. 
+
+One approach is to split a document into sentences and calculate embeddings for neighboring 
+sentences. If the semantic similarity between adjacent groups changes significantly, the system 
+may consider that location a potential chunk boundary. 
+
+For example, a document might begin by discussing embedding models and then transition to 
+vector database indexing. 
+
+A semantic chunker could detect that the topic has changed and create a new chunk. 
+
+The benefit is that chunks can better correspond to coherent topics. 
+
+The disadvantage is increased computational cost and complexity. Semantic chunking may 
+require multiple embedding operations during ingestion. 
+
+It also introduces additional hyperparameters, such as similarity thresholds and minimum or 
+maximum chunk sizes. 
+
+Semantic chunking should therefore be evaluated rather than assumed to be superior. 
+
+ 
+11. Chunk Metadata 
+
+A chunk should not contain only text. 
+
+A production RAG system should preserve metadata describing the chunk's origin. 
+
+A generic chunk might contain: 
+
+id 
+document_id 
+text 
+metadata 
+
+Metadata might contain: 
+
+
+
+document name 
+source path 
+MIME type 
+chunk index 
+total chunks 
+page number 
+section 
+subsection 
+start position 
+end position 
+chunking strategy 
+
+For example: 
+
+{ 
+"document_name": "rag.pdf", 
+"source_path": "papers/rag.pdf", 
+"mime_type": "application/pdf", 
+"chunk_index": 17, 
+"total_chunks": 80, 
+"page_start": 5, 
+"page_end": 6, 
+"chunking_strategy": "structure_aware" 
+} 
+
+Metadata enables several capabilities. 
+
+First, it supports citations. 
+
+Second, it allows filtering. 
+
+Third, it helps debugging. 
+
+Fourth, it enables evaluation. 
+
+Fifth, it enables advanced retrieval strategies. 
+
+A generic chunk interface should remain stable while metadata can vary by document type. 
+
+ 
+12. Research Paper Chunking 
+
+Research papers are particularly challenging for RAG. 
+
+A research paper may contain: 
+
+title 
+abstract 
+introduction 
+related work 
+methodology 
+experiments 
+results 
+
+
+
+discussion 
+conclusion 
+references 
+
+Within these sections there may be: 
+
+subsections 
+paragraphs 
+tables 
+figures 
+equations 
+captions 
+footnotes 
+citations 
+
+A naive fixed-size splitter can destroy these relationships. 
+
+For example, a table might be split across chunks. 
+
+A figure caption might become separated from the figure. 
+
+An equation might be separated from the paragraph explaining it. 
+
+A better research-paper representation is hierarchical. 
+
+Paper 
+→ Section 
+→ Subsection 
+→ Paragraph 
+→ Chunk 
+
+Tables and figures can be represented as special blocks. 
+
+This hierarchy allows the retrieval system to operate at different levels. 
+
+ 
+13. Multigranularity Retrieval 
+
+Multigranularity is particularly interesting for research papers. 
+
+Instead of creating only one type of chunk, the system can preserve multiple granularities. 
+
+For example: 
+
+Document level 
+Section level 
+Subsection level 
+Paragraph level 
+Leaf chunk level 
+
+Small chunks are useful for precise retrieval. 
+
+Large chunks are useful for context. 
+
+This creates a useful separation: 
+
+
+
+Retrieval granularity ≠ Generation granularity 
+
+Suppose a user asks: 
+
+"What optimizer did the authors use?" 
+
+A small paragraph might contain exactly the answer. 
+
+The retriever can find that paragraph. 
+
+But if the question is: 
+
+"Explain the methodology used by the authors." 
+
+a single paragraph may be insufficient. 
+
+The system can retrieve a small child chunk and then expand it to its parent subsection. 
+
+This is commonly described as parent-child retrieval or contextual expansion. 
+
+ 
+14. Parent-Child Retrieval 
+
+Parent-child retrieval creates relationships between chunks. 
+
+For example: 
+
+Parent: 
+
+Section 3 — Methodology 
+
+Children: 
+
+Chunk 31 
+Chunk 32 
+Chunk 33 
+Chunk 34 
+
+The children are embedded individually. 
+
+The retriever searches the children. 
+
+If Chunk 32 is retrieved, the system can optionally retrieve its parent section and use that larger 
+context during generation. 
+
+This combines the retrieval precision of small chunks with the contextual completeness of 
+larger sections. 
+
+The approach also makes metadata important. 
+
+A chunk might contain: 
+
+parent_id = section_3 
+
+When the retriever returns the chunk, the context construction stage can look up the parent. 
+
+This architecture is one of the natural extensions of basic chunking. 
+
+ 
+
+
+
+15. Tables in RAG 
+
+Tables present a special challenge. 
+
+Consider: 
+
+Model | Accuracy | F1 
+A | 91.2 | 89.7 
+B | 93.4 | 91.1 
+
+If a PDF extraction process produces a poorly ordered text stream, the table structure may be 
+lost. 
+
+A query such as: 
+
+"Which model achieved the highest F1 score?" 
+
+requires understanding the relationship between row labels, columns, and values. 
+
+A table-aware ingestion system can convert the table into structured text. 
+
+For example: 
+
+Table: Model Performance 
+
+Model A: 
+Accuracy = 91.2 
+F1 = 89.7 
+
+Model B: 
+Accuracy = 93.4 
+F1 = 91.1 
+
+The table can then be embedded as a coherent unit. 
+
+Metadata should identify the table and its source location. 
+
+ 
+16. Figures and Images 
+
+Figures can also contain important information. 
+
+A research paper might contain an architecture diagram that explains how a model works. 
+
+Traditional text-only RAG cannot directly understand the visual content unless the image has 
+been converted into useful text. 
+
+A basic system can preserve: 
+
+figure number 
+caption 
+page number 
+surrounding text 
+
+An advanced multimodal system can use a vision-language model to generate a description of 
+the figure. 
+
+
+
+The description can then be embedded. 
+
+The image itself can also potentially be stored and retrieved. 
+
+This produces multimodal RAG. 
+
+However, multimodal processing introduces additional complexity and should generally be 
+added after a strong text-based baseline has been established. 
+
+ 
+17. Equations 
+
+Equations can be difficult for text extraction systems. 
+
+For example: 
+
+Attention(Q,K,V) = softmax(QKᵀ / √dₖ)V 
+
+The equation itself may not explain what Q, K, V, or dₖ represent. 
+
+The surrounding text often provides the necessary meaning. 
+
+Therefore, equations should generally remain associated with their explanatory context. 
+
+A good representation may contain: 
+
+section 
+preceding explanation 
+equation 
+following explanation 
+
+This allows retrieval to return a meaningful unit instead of an isolated mathematical expression. 
+
+ 
+18. Embeddings 
+
+Embeddings are numerical representations of text. 
+
+An embedding model transforms a piece of text into a vector: 
+
+text → embedding vector 
+
+For example, a chunk might become a vector with hundreds or thousands of dimensions. 
+
+The actual numerical values are not human interpretable individually. Their usefulness comes 
+from the geometric relationships between vectors. 
+
+Semantically similar texts should ideally produce vectors that are close according to the 
+similarity metric used by the retrieval system. 
+
+For example: 
+
+"How does RAG retrieve documents?" 
+
+and: 
+
+"What mechanism is used to find relevant passages?" 
+
+
+
+may have different words but similar semantic meaning. 
+
+A good embedding model should represent them as related vectors. 
+
+ 
+19. Cosine Similarity 
+
+Cosine similarity is a common metric for comparing embeddings. 
+
+Given vectors A and B: 
+
+cosine_similarity(A,B) = (A · B) / (||A|| ||B||) 
+
+The value measures the angle between the vectors. 
+
+A value close to 1 indicates that the vectors point in similar directions. 
+
+A value close to 0 indicates little directional similarity. 
+
+The exact similarity behavior depends on the embedding model and normalization. 
+
+Vector search systems use similarity metrics to identify candidate chunks. 
+
+However, similarity should not be interpreted as perfect relevance. 
+
+A chunk can be semantically similar to a query while still failing to answer it. 
+
+For example, a query about "retrieval latency" might retrieve a document discussing "retrieval 
+quality" because the concepts are related. 
+
+This is one reason reranking can be useful. 
+
+ 
+20. Vector Indexing 
+
+If a knowledge base contains only a few hundred chunks, comparing a query embedding against 
+every chunk may be acceptable. 
+
+But suppose the system contains ten million chunks. 
+
+A brute-force search would require comparing the query against millions of vectors. 
+
+Approximate nearest neighbor algorithms make this problem more manageable. 
+
+One popular approach is HNSW, or Hierarchical Navigable Small World graphs. 
+
+HNSW creates a graph structure that allows approximate nearest neighbor search. 
+
+The algorithm trades some exactness for significantly faster retrieval. 
+
+Important parameters influence the tradeoff between recall, memory, indexing speed, and 
+query latency. 
+
+The appropriate configuration depends on the application's scale and performance 
+requirements. 
+
+ 
+
+
+
+21. Vector Databases 
+
+A vector database manages vector storage, indexing, metadata, and retrieval. 
+
+A typical record might contain: 
+
+id 
+embedding 
+text 
+metadata 
+
+The metadata may include: 
+
+document_id 
+tenant_id 
+source 
+page 
+section 
+timestamp 
+permissions 
+
+A query can request the nearest vectors and optionally apply metadata filters. 
+
+For example: 
+
+retrieve the top 10 chunks 
+where document_id = "paper_123" 
+
+or: 
+
+retrieve chunks where tenant_id = "company_A" 
+
+Metadata filtering becomes especially important in multi-tenant systems. 
+
+ 
+22. Hybrid Retrieval 
+
+Vector search is not always enough. 
+
+Some queries depend heavily on exact terminology. 
+
+For example: 
+
+"What is error code E-1047?" 
+
+Semantic retrieval may understand the general meaning but fail to prioritize the exact error 
+code. 
+
+Keyword retrieval such as BM25 can be much better for exact terms. 
+
+Hybrid retrieval combines lexical and semantic methods. 
+
+The system may retrieve candidates from: 
+
+vector search 
+keyword search 
+
+
+
+and then combine or rerank the results. 
+
+This can provide stronger retrieval across different query types. 
+
+Semantic search is generally good at conceptual similarity. 
+
+Keyword search is generally good at exact matching. 
+
+Hybrid retrieval attempts to exploit both. 
+
+ 
+23. Query Rewriting 
+
+Users do not always ask questions in retrieval-friendly language. 
+
+A query might be: 
+
+"what about that database thing from earlier?" 
+
+A query rewriting model can transform it into a more explicit search query based on 
+conversation context. 
+
+Another example: 
+
+Original: 
+
+"How does it deal with bad retrieval?" 
+
+Rewritten: 
+
+"How does the RAG system handle irrelevant or low-quality retrieved documents?" 
+
+Query rewriting can improve retrieval because the rewritten query contains clearer terminology. 
+
+However, query rewriting can also introduce errors. 
+
+If the rewriting model misunderstands the user's intent, the retrieval query may move away from 
+the actual question. 
+
+Therefore query rewriting should be evaluated as an independent component. 
+
+ 
+24. Multi-Query Retrieval 
+
+A single query may express a concept in only one way. 
+
+Multi-query retrieval generates multiple related search queries. 
+
+For example: 
+
+Original: 
+
+"How can RAG reduce hallucinations?" 
+
+Generated queries: 
+
+"How does retrieval grounding reduce hallucinations?" 
+
+"What role does retrieved context play in factual accuracy?" 
+
+
+
+"How does evidence-based generation improve reliability?" 
+
+Each query is sent to the retrieval system. 
+
+The candidate sets are then combined. 
+
+This can improve recall because different query formulations may retrieve different relevant 
+documents. 
+
+The cost is additional model calls and retrieval operations. 
+
+ 
+25. HyDE 
+
+HyDE stands for Hypothetical Document Embeddings. 
+
+The basic idea is to generate a hypothetical answer or document that might answer the query, 
+then embed that generated text and use the resulting vector for retrieval. 
+
+For example: 
+
+User query: 
+
+"How does parent-child retrieval work?" 
+
+Instead of directly embedding the question, a language model generates a hypothetical 
+explanation. 
+
+That hypothetical explanation is embedded. 
+
+The retrieval system searches for documents similar to the hypothetical explanation. 
+
+The technique can sometimes improve retrieval because documents and generated 
+hypothetical answers may have more similar linguistic structure than a short question and a 
+technical document. 
+
+However, the hypothetical text is not treated as factual evidence. It is only a retrieval 
+mechanism. 
+
+ 
+26. Reranking 
+
+Initial retrieval usually prioritizes speed. 
+
+A vector database can quickly return the top 20 or 50 candidates. 
+
+A reranker can then examine those candidates more carefully. 
+
+A common architecture is: 
+
+Query 
+↓ 
+Vector search 
+↓ 
+Top 50 candidates 
+↓ 
+
+
+
+Reranker 
+↓ 
+Top 5 candidates 
+
+A cross-encoder reranker jointly processes the query and candidate text. 
+
+This allows it to model detailed interactions between them. 
+
+Reranking is often useful when the initial retriever has high recall but mediocre precision. 
+
+The tradeoff is latency and computation. 
+
+A production system should therefore use reranking selectively. 
+
+ 
+27. Context Compression 
+
+Retrieved chunks can contain irrelevant information. 
+
+Context compression attempts to remove unnecessary material before sending it to the 
+language model. 
+
+Suppose a chunk contains 800 tokens but only 150 tokens directly answer the question. 
+
+A compression system might extract the relevant portion. 
+
+This reduces prompt size. 
+
+Smaller contexts can reduce latency and model cost. 
+
+However, aggressive compression can accidentally remove important supporting information. 
+
+Compression should therefore be evaluated for both relevance and information preservation. 
+
+ 
+28. Context Window 
+
+Language models have finite context windows. 
+
+Even if a model supports a very large context, providing thousands of irrelevant chunks can 
+degrade performance. 
+
+This creates a fundamental RAG design problem: 
+
+How much retrieved context should be given to the model? 
+
+Too little context can cause missing information. 
+
+Too much context can cause noise, cost, and attention dilution. 
+
+A good system therefore tries to retrieve a small amount of high-quality context. 
+
+This is why retrieval precision matters. 
+
+The goal is not to retrieve as much information as possible. 
+
+The goal is to retrieve the information necessary to answer the question. 
+
+
+
+ 
+29. Generation 
+
+After retrieval and context construction, the language model receives a prompt containing: 
+
+system instructions 
+retrieved context 
+user question 
+
+A simple prompt might say: 
+
+"Answer the question using only the provided context. If the context does not contain enough 
+information, say that the information is unavailable." 
+
+Then the model receives retrieved chunks. 
+
+The generation model is responsible for synthesizing the evidence into a coherent answer. 
+
+Importantly, the generation model should not be expected to compensate for poor retrieval. 
+
+If the relevant document is never retrieved, the model cannot reliably use it. 
+
+This leads to an important debugging principle: 
+
+When a RAG answer is wrong, first determine whether the correct evidence was retrieved. 
+
+If it was not retrieved, the problem is primarily retrieval. 
+
+If the correct evidence was retrieved but the answer is still wrong, the problem may lie in 
+context construction or generation. 
+
+ 
+30. Hallucinations in RAG 
+
+RAG can reduce hallucinations but does not eliminate them. 
+
+A language model can still generate information that is unsupported by the retrieved context. 
+
+Hallucination can occur because: 
+
+the retriever returned irrelevant information 
+the correct information was missing 
+the context was ambiguous 
+the model misunderstood the evidence 
+the model relied on prior knowledge 
+the prompt allowed unsupported generation 
+
+One useful design principle is grounded generation. 
+
+The model should be instructed to base factual claims on retrieved evidence. 
+
+The system can also require citations. 
+
+For example: 
+
+"According to the retrieved documentation, the system uses HNSW indexing." 
+
+
+
+The application can associate that statement with a source chunk. 
+
+Citation requirements can improve traceability, although they do not guarantee factual 
+correctness. 
+
+ 
+31. Citation Systems 
+
+A production RAG system should preserve source identity throughout the pipeline. 
+
+Suppose a retrieved chunk has: 
+
+document_id = paper_123 
+page_start = 5 
+page_end = 6 
+
+The generation layer can use this information to produce a citation. 
+
+The user might see: 
+
+"The authors use a hierarchical retrieval architecture. [Paper, pages 5–6]" 
+
+The citation system requires the ingestion pipeline to preserve metadata. 
+
+This is why chunk metadata should be designed early rather than added as an afterthought. 
+
+A stable chunk ID also makes it possible to trace a generated answer back to the exact retrieval 
+result. 
+
+ 
+32. Evaluation 
+
+Evaluation is essential for production RAG. 
+
+A system can produce fluent answers while performing poorly on retrieval. 
+
+Evaluation should therefore be performed at multiple levels. 
+
+Ingestion evaluation checks whether documents are correctly loaded and parsed. 
+
+Chunking evaluation checks whether important information is preserved in useful units. 
+
+Retrieval evaluation checks whether relevant chunks are returned. 
+
+Generation evaluation checks whether the final answer is correct and grounded. 
+
+Latency and cost evaluation checks whether the architecture is practical. 
+
+A good evaluation dataset contains representative user questions. 
+
+For each question, the dataset may include: 
+
+question 
+expected answer 
+relevant document 
+relevant chunk 
+expected citations 
+
+
+
+This enables systematic comparison between strategies. 
+
+ 
+33. Retrieval Metrics 
+
+Recall@K measures whether relevant information appears within the top K retrieved results. 
+
+For example, if the correct chunk is among the top five results, Recall@5 considers that query 
+successfully retrieved relevant information. 
+
+Precision@K measures how many of the top K results are relevant. 
+
+Mean Reciprocal Rank considers the position of the first relevant result. 
+
+If the correct result appears first, the reciprocal rank is 1. 
+
+If it appears second, the reciprocal rank is 1/2. 
+
+If it appears fifth, the reciprocal rank is 1/5. 
+
+NDCG, or Normalized Discounted Cumulative Gain, evaluates ranking quality while giving 
+greater importance to highly ranked relevant results. 
+
+Different metrics answer different questions. 
+
+Recall is important when missing evidence is dangerous. 
+
+Precision is important when context capacity is limited. 
+
+Ranking metrics are important when only the top few results will be passed to the model. 
+
+ 
+34. Generation Evaluation 
+
+Generation evaluation can consider several dimensions. 
+
+Correctness asks whether the answer is factually accurate. 
+
+Relevance asks whether it answers the user's actual question. 
+
+Completeness asks whether important information was omitted. 
+
+Groundedness asks whether the answer is supported by retrieved evidence. 
+
+Citation correctness asks whether citations actually support the claims they are attached to. 
+
+A system can score well on one dimension and poorly on another. 
+
+For example, an answer may be factually correct but unsupported by the retrieved context. 
+
+Alternatively, an answer may cite relevant documents but misunderstand their content. 
+
+This is why end-to-end evaluation alone is insufficient. 
+
+ 
+35. RAG Failure Modes 
+
+RAG systems have several common failure modes. 
+
+
+
+The first is retrieval failure. 
+
+The correct information exists in the knowledge base but is not retrieved. 
+
+The second is chunking failure. 
+
+The correct information exists, but it is split into chunks that are difficult to retrieve or interpret. 
+
+The third is ranking failure. 
+
+The correct chunk is retrieved but ranked below irrelevant candidates. 
+
+The fourth is context failure. 
+
+The correct evidence is retrieved but omitted from the final prompt. 
+
+The fifth is generation failure. 
+
+The correct evidence is provided to the model but the model generates an incorrect answer. 
+
+The sixth is ingestion failure. 
+
+The document was parsed incorrectly or never entered the knowledge base. 
+
+Understanding these categories is important because each requires a different solution. 
+
+Increasing the model size will not fix a document ingestion bug. 
+
+Adding more retrieval candidates will not necessarily fix a broken PDF parser. 
+
+Changing the prompt will not solve a retrieval system that never finds the relevant document.
