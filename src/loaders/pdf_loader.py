@@ -11,6 +11,7 @@ os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
@@ -44,6 +45,10 @@ class PDFLoader(BaseLoader):
         # We only need normal PDF text/structure for V1.
         pipeline_options.do_formula_enrichment = False
         pipeline_options.generate_picture_images = False
+        #pipeline_options.do_ocr = False
+        pipeline_options.force_backend_text = True
+        pipeline_options.do_ocr = False
+        pipeline_options.do_table_structure = True
 
         self._converter = DocumentConverter(
             format_options={
