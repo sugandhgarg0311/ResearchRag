@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-paper: 250 249 246;
+  --c-panel: 245 244 240;
+  --c-card: 255 255 255;
+  --c-ink: 28 25 23;
+  --c-ink-soft: 68 64 60;
+  --c-ink-mute: 120 113 108;
+  --c-ink-faint: 168 162 158;
+  --c-line: 231 229 228;
+  --c-accent: 15 94 86;
+  --c-accent-dark: 12 74 68;
+  --c-accent-soft: 230 240 238;
+  --c-warn: 180 83 9;
+  --c-warn-soft: 254 243 226;
+  --c-danger: 185 28 28;
+  --c-danger-soft: 253 236 236;
+  --c-ok: 21 128 61;
+  --c-ok-soft: 233 244 236;
+  --c-infer: 124 58 237;
+  --c-infer-soft: 241 236 251;
+  --c-external: 3 105 161;
+  --c-external-soft: 232 242 249;
+  color-scheme: light;
+}
+
+.dark {
+  --c-paper: 13 17 18;
+  --c-panel: 22 27 29;
+  --c-card: 30 36 38;
+  --c-ink: 235 232 226;
+  --c-ink-soft: 200 195 186;
+  --c-ink-mute: 150 143 132;
+  --c-ink-faint: 105 100 90;
+  --c-line: 52 60 62;
+  --c-accent: 45 212 191;
+  --c-accent-dark: 94 234 212;
+  --c-accent-soft: 19 48 44;
+  --c-warn: 251 191 36;
+  --c-warn-soft: 66 48 12;
+  --c-danger: 248 113 113;
+  --c-danger-soft: 66 24 24;
+  --c-ok: 74 222 128;
+  --c-ok-soft: 18 56 32;
+  --c-infer: 196 181 253;
+  --c-infer-soft: 52 36 96;
+  --c-external: 125 211 252;
+  --c-external-soft: 16 52 76;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-paper text-ink font-sans;
+  }
+  ::selection {
+    @apply bg-accent/15;
+  }
+  /* Respect reduced-motion: kill entrance animations. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .prose-chunk {
+    @apply text-sm leading-relaxed text-ink-soft whitespace-pre-wrap;
+  }
+
+  /* Unicode-math display: math-capable serif stack, no line breaking
+     inside expressions (wraps only at spaces), horizontal scroll. */
+  .font-math {
+    font-family: "STIX Two Math", "XITS Math", "Latin Modern Math",
+      "Cambria Math", Georgia, "Times New Roman", serif;
+    font-variant-ligatures: none;
+  }
+  .math-scroll {
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* Staggered entrance: parent sets --stagger, children use animation-delay. */
+  .stagger > * {
+    animation: rise 220ms ease-out both;
+    animation-delay: calc(var(--stagger, 0) * 1ms);
+  }
+
+  /* Skeleton shimmer for loading states (premium, non-emoji). */
+  .skeleton {
+    @apply relative overflow-hidden bg-panel border border-line/60 rounded-sm;
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.28), transparent);
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Pulsing status dot: offline amber pulse, live green steady. */
+  .dot-pulse {
+    animation: dotpulse 1.8s ease-in-out infinite;
+  }
+
+  /* Premium focus: visible keyboard ring everywhere. */
+  :where(a, button, input, textarea, select):focus-visible {
+    outline: 2px solid rgba(15, 94, 86, 0.6);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Slim, quiet scrollbars for tables and code. */
+  :where(.overflow-x-auto, pre)::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  :where(.overflow-x-auto, pre)::-webkit-scrollbar-thumb {
+    background: #e7e5e4;
+    border-radius: 4px;
+  }
+}

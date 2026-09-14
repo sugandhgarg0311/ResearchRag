@@ -1,0 +1,232 @@
+{
+  "name": "rag_lwis2020",
+  "paper": "rag_paper.pdf",
+  "source": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks (Lewis et al., 2020, arXiv:2005.11401) — data/samples/rag_paper.pdf",
+  "note": "Gold chunks are verbatim text fragments resolved against ingested chunks at load time (see researchrag/evaluation/dataset.py). Questions cover all 12 required classes, including cross-section and cross-page retrieval.",
+  "questions": [
+    {
+      "id": "q01",
+      "question": "Which Wikipedia dump did the authors use as the non-parametric knowledge source?",
+      "class": "fact_lookup",
+      "gold_chunks": ["we use the December 2018 dump"],
+      "gold_answer": "The December 2018 Wikipedia dump"
+    },
+    {
+      "id": "q02",
+      "question": "How many documents does the Wikipedia index contain, and how were articles split?",
+      "class": "fact_lookup",
+      "gold_chunks": ["Each Wikipedia article is split into disjoint 100-word chunks, to make a total of 21M documents"],
+      "gold_answer": "21M documents, each article split into disjoint 100-word chunks"
+    },
+    {
+      "id": "q03",
+      "question": "Which pre-trained retriever initializes RAG's retriever and document index?",
+      "class": "fact_lookup",
+      "gold_chunks": ["We use a pre-trained bi-encoder from DPR to initialize our retriever"],
+      "gold_answer": "The DPR (Dense Passage Retriever) bi-encoder"
+    },
+    {
+      "id": "q04",
+      "question": "What does the paper call the dense vector index of Wikipedia?",
+      "class": "definition",
+      "gold_chunks": ["We refer to the document index as the non-parametric memory"],
+      "gold_answer": "The non-parametric memory"
+    },
+    {
+      "id": "q05",
+      "question": "What is 'Thorough Decoding' in the RAG-Sequence inference procedure?",
+      "class": "definition",
+      "gold_chunks": ["run an additional forward pass for each document z for which y does not appear in the beam, multiply generator probability with pη(z|x)"],
+      "gold_answer": "Running an additional forward pass for each document whose beam did not contain a hypothesis, then summing marginals"
+    },
+    {
+      "id": "q06",
+      "question": "How is the input query combined with the retrieved document before generation?",
+      "class": "methodology",
+      "gold_chunks": ["we simply concatenate them"],
+      "gold_answer": "They are concatenated"
+    },
+    {
+      "id": "q07",
+      "question": "How are the retriever and generator trained, and what supervision signal do they receive?",
+      "class": "methodology",
+      "gold_chunks": ["We jointly train the retriever and generator components without any direct supervision on what document should be retrieved"],
+      "gold_answer": "Jointly end-to-end, minimizing negative marginal log-likelihood, with no direct supervision on retrieval"
+    },
+    {
+      "id": "q08",
+      "question": "Which training framework did the authors use for all RAG models and BART baselines?",
+      "class": "implementation_detail",
+      "gold_chunks": ["We train all RAG models and BART baselines using Fairseq"],
+      "gold_answer": "Fairseq (with mixed precision)"
+    },
+    {
+      "id": "q09",
+      "question": "How much CPU memory does the full Wikipedia document index require, and what does compression reduce it to?",
+      "class": "implementation_detail",
+      "gold_chunks": ["requiring ∼100 GB of CPU memory for all of Wikipedia", "reducing the CPU memory requirement to 36GB"],
+      "gold_answer": "About 100 GB uncompressed, 36 GB after FAISS compression"
+    },
+    {
+      "id": "q10",
+      "question": "Which values of k were considered for training, and how was the test-time k chosen?",
+      "class": "hyperparameter_lookup",
+      "gold_chunks": ["We consider k ∈{5, 10} for training and set k for test time using dev data"],
+      "gold_answer": "k in {5, 10} for training; test-time k chosen on dev data"
+    },
+    {
+      "id": "q11",
+      "question": "How many trainable parameters do the RAG models contain in total?",
+      "class": "hyperparameter_lookup",
+      "gold_chunks": ["making a total of 626M trainable"],
+      "gold_answer": "626M trainable parameters"
+    },
+    {
+      "id": "q12",
+      "question": "Compared to the DPR QA system, what does RAG demonstrate is unnecessary for state-of-the-art performance?",
+      "class": "comparison",
+      "gold_chunks": ["neither a re-ranker nor extractive reader is necessary for state-of-the-art performance"],
+      "gold_answer": "Neither a re-ranker nor an extractive reader"
+    },
+    {
+      "id": "q13",
+      "question": "On Jeopardy question generation, which model performs better on Q-BLEU-1, RAG-Token or RAG-Sequence, and by how much?",
+      "class": "comparison",
+      "gold_chunks": ["RAG-Token performs better than RAG-Sequence on Jeopardy question generation, with both models outperforming BART on Q-BLEU-1", "RAG-Tok. 17.3 22.2 40.1 41.5 72.5 89.5"],
+      "gold_answer": "RAG-Token (22.2 Q-BLEU-1 vs 21.4 for RAG-Sequence)"
+    },
+    {
+      "id": "q14",
+      "question": "What Exact Match score does RAG-Sequence achieve on Natural Questions in Table 1?",
+      "class": "numerical_result",
+      "gold_chunks": ["RAG-Seq. 44.5 56.8/68.0 45.2 52.2"],
+      "gold_answer": "44.5 EM"
+    },
+    {
+      "id": "q15",
+      "question": "What Exact Match score does RAG-Token achieve on the standard TriviaQA test set?",
+      "class": "numerical_result",
+      "gold_chunks": ["RAG-Token 44.1 55.2/66.1 45.5 50.0"],
+      "gold_answer": "55.2 EM (66.1 on the TQA-Wiki split)"
+    },
+    {
+      "id": "q16",
+      "question": "How many training examples does Natural Questions have according to Table 7?",
+      "class": "numerical_result",
+      "gold_chunks": ["Natural Questions 79169 8758 3611"],
+      "gold_answer": "79,169"
+    },
+    {
+      "id": "q17",
+      "question": "Computing the top-k documents for a query amounts to which search problem, and how fast can it be approximated?",
+      "class": "equation_reasoning",
+      "gold_chunks": ["is a Maximum Inner Product Search (MIPS) problem, which can be approximately solved in sub-linear time"],
+      "gold_answer": "A Maximum Inner Product Search (MIPS) problem, approximable in sub-linear time"
+    },
+    {
+      "id": "q18",
+      "question": "According to Table 7, how many development examples does WebQuestions have?",
+      "class": "table_reasoning",
+      "gold_chunks": ["WebQuestions 3418 362 2033"],
+      "gold_answer": "362"
+    },
+    {
+      "id": "q19",
+      "question": "In the retrieval ablations of Table 6, on which task does the BM25 retriever perform best?",
+      "class": "table_reasoning",
+      "gold_chunks": ["For FEVER, BM25 performs best", "RAG-Token-BM25 29.7 41.5 32.1 33.1 17.5 22.3 55.5 48.4 75.1 91.6 11.1 19.5 56.5 46.9"],
+      "gold_answer": "FEVER (entity-centric claims suit word-overlap retrieval)"
+    },
+    {
+      "id": "q20",
+      "question": "In Figure 2, which novel has a high document posterior for document 2 when generating answers for 'Hemingway'?",
+      "class": "figure_reasoning",
+      "gold_chunks": ["The posterior for document 1 is high when generating", "Document 2: ... artists of the 1920s ”Lost Generation” expatriate community. His debut novel, ”The Sun Also Rises”, was published in 1926."],
+      "gold_answer": "The Sun Also Rises"
+    },
+    {
+      "id": "q21",
+      "question": "Why did the authors keep the document encoder (and document index) fixed during RAG fine-tuning?",
+      "class": "cross_section_reasoning",
+      "gold_chunks": ["Updating the document encoder BERTd during training is costly as it requires the document index to be periodically updated as REALM does during pre-training"],
+      "gold_answer": "Updating it would require periodically rebuilding the document index (as REALM does in pre-training), which is costly, and they found it unnecessary"
+    },
+    {
+      "id": "q22",
+      "question": "In the null document experiment (Appendix F), what three ways were tried to model the null document logit, and what was the outcome?",
+      "class": "cross_section_reasoning",
+      "gold_chunks": ["We explored modelling this null document logit by learning (i) a document embedding for the null document, (ii) a static learnt bias term, or (iii) a neural network to predict the logit"],
+      "gold_answer": "A learnt document embedding, a static bias, or a neural network — none improved performance, so the mechanism was dropped for simplicity"
+    },
+    {
+      "id": "q23",
+      "question": "What are the two main components of a RAG model and what memory type does each correspond to?",
+      "class": "global_paper",
+      "gold_chunks": ["The retriever (Dense Passage Retriever [26], henceforth DPR) provides latent documents conditioned on the input, and the seq2seq model (BART [32]) then conditions on these latent documents"],
+      "gold_answer": "A dense retriever (non-parametric memory) and a BART seq2seq generator (parametric memory)"
+    },
+    {
+      "id": "q24",
+      "question": "What hardware was used to train the RAG models?",
+      "class": "implementation_detail",
+      "gold_chunks": ["distributing training across 8, 32GB NVIDIA V100 GPUs"],
+      "gold_answer": "8x 32GB NVIDIA V100 GPUs (with mixed precision; single GPU is sufficient for inference)"
+    },
+    {
+      "id": "q25",
+      "question": "In the Jeopardy human evaluation, what fraction of pairwise comparisons did evaluators judge RAG more factual than BART?",
+      "class": "numerical_result",
+      "gold_chunks": ["RAG was more factual in 42.7% of cases"],
+      "gold_answer": "42.7%"
+    },
+    {
+      "id": "q26",
+      "question": "On FEVER, how often is RAG's top retrieved document from a gold evidence article, and how often is a gold article in the top 10?",
+      "class": "numerical_result",
+      "gold_chunks": ["the top retrieved document is from a gold article in 71% of cases, and a gold article is present in the top 10 retrieved articles in 90% of cases"],
+      "gold_answer": "71% for top-1; 90% within top-10"
+    },
+    {
+      "id": "q27",
+      "question": "By how much does RAG-Sequence outperform BART on Open MS-MARCO NLG?",
+      "class": "comparison",
+      "gold_chunks": ["RAG-Sequence outperforms BART on Open MS-MARCO NLG by 2.6 Bleu points and 2.6 Rouge-L points."],
+      "gold_answer": "2.6 BLEU and 2.6 Rouge-L points"
+    },
+    {
+      "id": "q28",
+      "question": "What approximation does 'Fast Decoding' make to avoid extra forward passes in RAG-Sequence inference?",
+      "class": "implementation_detail",
+      "gold_chunks": ["we can make a further approximation that pθ(y|x, zi) ≈0 where y was not generated during beam search from x, zi"],
+      "gold_answer": "It assumes the generator probability is ~0 for any hypothesis not in the beam for that document"
+    },
+    {
+      "id": "q29",
+      "question": "Which metric is used to evaluate the generated Jeopardy questions, and why was it chosen?",
+      "class": "fact_lookup",
+      "gold_chunks": ["we evaluate using the SQuAD-tuned Q-BLEU-1 metric"],
+      "gold_answer": "SQuAD-tuned Q-BLEU-1, because it weights entities and correlates better with human judgment for question generation"
+    },
+    {
+      "id": "q30",
+      "question": "How many parameters does the BART generator used in RAG have?",
+      "class": "fact_lookup",
+      "gold_chunks": ["We use BART-large [32], a pre-trained seq2seq transformer [58] with 400M parameters"],
+      "gold_answer": "400M (BART-large)"
+    },
+    {
+      "id": "q31",
+      "question": "How did the authors demonstrate that RAG's knowledge can be updated at test time without retraining?",
+      "class": "cross_section_reasoning",
+      "gold_chunks": ["we build an index using the DrQA [5] Wikipedia dump from December 2016 and compare outputs from RAG using this index"],
+      "gold_answer": "Index hot-swapping: they swapped in an index built from the December 2016 DrQA Wikipedia dump and showed answers tracked the changed facts (e.g., 82 changed world leaders)"
+    },
+    {
+      "id": "q32",
+      "question": "What does Figure 1 of the paper illustrate?",
+      "class": "figure_reasoning",
+      "gold_chunks": ["We combine a pre-trained retriever (Query Encoder + Document Index) with a pre-trained seq2seq model (Generator) and ﬁne-tune end-to-end"],
+      "gold_answer": "The RAG architecture: a pre-trained retriever plus a pre-trained seq2seq generator, fine-tuned end-to-end with marginalization over retrieved documents"
+    }
+  ]
+}

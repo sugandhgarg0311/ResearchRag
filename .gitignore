@@ -3,3 +3,21 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# runtime state (SQLite, Qdrant, BM25 indexes, artifacts, uploads) —
+# everything under data/ except the bundled sample paper
+data/*
+!data/samples/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
